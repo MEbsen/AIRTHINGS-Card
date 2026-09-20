@@ -3,7 +3,7 @@
 A responsive Home Assistant card for one Airthings device. Each measurement
 combines its current value, health colour and recent history in one glance.
 
-> **Status:** v0.1.0 preview. The YAML API can change before v1.0.
+> **Status:** v0.2.0 preview. The YAML API can change before v1.0.
 
 ![Two responsive Airthings Card concepts](docs/concepts.svg)
 
@@ -35,35 +35,25 @@ Resource type: **JavaScript module**.
 
 ## First configuration
 
-Add **Custom: Airthings Card** from Home Assistant's card picker. The visual
-editor lets you select the six sensors belonging to one physical Airthings
-device. Empty measurements are hidden. YAML remains available for advanced use:
+Add **Custom: Airthings Card** from Home Assistant's card picker. Select one
+Airthings device; the card discovers its supported sensors automatically.
+YAML remains available:
 
 ~~~yaml
 type: custom:airthings-card
-title: Bedroom
+device_id: 0123456789abcdef
+title: Bedroom # optional
 hours: 24
 columns: auto
-entities:
-  - entity: sensor.bedroom_radon
-    type: radon
-  - entity: sensor.bedroom_co2
-    type: co2
-  - entity: sensor.bedroom_voc
-    type: voc
-  - entity: sensor.bedroom_temperature
-    type: temperature
-  - entity: sensor.bedroom_humidity
-    type: humidity
-  - entity: sensor.bedroom_pressure
-    type: pressure
 ~~~
 
-Preview presets: radon, co2, voc, temperature, humidity and pressure.
+The visual editor writes the device ID for you. Existing configurations using
+the manual entities list remain supported as a fallback.
 
 ## Current preview
 
-- Visual editor with Home Assistant entity pickers.
+- Visual editor with one Home Assistant device picker.
+- Automatic Airthings sensor discovery through HA's device/entity registry.
 - Responsive card and SVG sparklines.
 - History from Home Assistant recorder API.
 - Threshold colour on current value and individual graph segments.
@@ -72,7 +62,6 @@ Preview presets: radon, co2, voc, temperature, humidity and pressure.
 
 ## Planned before v1.0
 
-- Automatic grouping/discovery from an Airthings HA device.
 - Editor controls for time range, thresholds and graph detail.
 - Optional compact layout and per-device summary.
 - Localised labels, including Danish.
