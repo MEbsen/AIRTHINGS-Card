@@ -8,7 +8,7 @@
   <rect width="1200" height="720" fill="url(#bg)"/>
   <text x="50" y="45" class="cap">WIDE DASHBOARD CARD</text>
   <g transform="translate(50 68)">
-    <rect width="750" height="602" rx="24" fill="#192328" stroke="#2c383e"/>
+    <rect width="750" height="420" rx="24" fill="#192328" stroke="#2c383e"/>
     <text x="28" y="43" class="title">Bedroom</text><text x="28" y="66" class="sub">24 hour history · updated now</text>
     <rect x="641" y="24" width="81" height="34" rx="17" fill="#433b20"/><text x="664" y="47" class="status" fill="#e8b931">FAIR</text>
     <g transform="translate(24 92)">
@@ -19,9 +19,6 @@
       <g transform="translate(238 157)"><rect width="226" height="145" rx="17" fill="#222d32"/><text x="18" y="31" class="label">◯  Humidity</text><text x="18" y="72" class="value">62</text><text x="60" y="72" class="unit">%</text><text x="18" y="99" class="status" fill="#e8b931">Fair</text><path d="M18 112 C55 110 85 116 115 121" class="line" stroke="#45b97c"/><path d="M115 121 C149 122 178 131 208 127" class="line" stroke="#e8b931"/></g>
       <g transform="translate(476 157)"><rect width="226" height="145" rx="17" fill="#222d32"/><text x="18" y="31" class="label">◴  Pressure</text><text x="18" y="72" class="value">1006</text><text x="90" y="72" class="unit">hPa</text><text x="18" y="99" class="status" fill="#55a9c9">Stable</text><path d="M18 125 C67 123 108 126 208 121" class="line" stroke="#55a9c9"/></g>
     </g>
-    <rect x="24" y="420" width="702" height="154" rx="17" fill="#142d26" stroke="#25483d"/>
-    <text x="48" y="456" class="label" fill="#a7ddc1">Overall air quality</text><text x="48" y="498" class="title" fill="#e8b931">Fair — humidity is slightly high</text>
-    <text x="48" y="531" class="sub">Tap a measurement to open Home Assistant history and details.</text>
   </g>
   <text x="852" y="45" class="cap">NARROW / MOBILE CARD</text>
   <g transform="translate(852 68)">
