@@ -1,6 +1,6 @@
 {
   "name": "airthings-card",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Responsive Home Assistant card for Airthings measurements",
   "type": "module",
   "scripts": {
