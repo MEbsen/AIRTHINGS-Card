@@ -3,7 +3,7 @@
 A responsive Home Assistant card for one Airthings device. Each measurement
 combines its current value, health colour and recent history in one glance.
 
-> **Status:** v0.2.4 preview. The YAML API can change before v1.0.
+> **Status:** v0.2.5 preview. The YAML API can change before v1.0.
 
 ![Two responsive Airthings Card concepts](docs/concepts.svg)
 
@@ -46,7 +46,6 @@ type: custom:airthings-card
 device_id: 0123456789abcdef
 title: Bedroom # optional
 hours: 24
-columns: auto
 ~~~
 
 The visual editor writes the device ID for you. Existing configurations using
@@ -57,6 +56,7 @@ the manual entities list remain supported as a fallback.
 - Visual editor with one Home Assistant device picker.
 - Automatic Airthings sensor discovery through HA's device/entity registry.
 - Responsive card and SVG sparklines.
+- Automatic column count based on the width assigned by the dashboard layout.
 - History from Home Assistant recorder API.
 - Threshold colour on current value and individual graph segments.
 - Measurement click opens the Home Assistant more-info dialog.
