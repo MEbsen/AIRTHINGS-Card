@@ -1,4 +1,4 @@
-const VERSION = "0.2.3";
+const VERSION = "0.2.4";
 const COLORS = {
   good: "#45b97c", fair: "#e8b931", poor: "#ef8d32",
   high: "#e05252", neutral: "#55a9c9", unavailable: "#8a949c"
@@ -268,28 +268,30 @@ class AirthingsCardEditor extends HTMLElement {
     if (!this.shadowRoot || !this._config) return;
     this.shadowRoot.innerHTML = '<style>' +
       ':host{display:block}.form{display:grid;gap:14px;padding:8px 0}.row{display:grid;grid-template-columns:2fr 1fr;gap:12px}' +
-      'ha-textfield,ha-select{width:100%}.device-field{display:grid;gap:5px}.device-field label{font-size:.75rem;color:var(--secondary-text-color);padding-left:12px}' +
-      '.device-field select{box-sizing:border-box;width:100%;height:56px;padding:0 12px;border:1px solid var(--outline-color,var(--divider-color,#777));border-radius:4px;background:var(--card-background-color);color:var(--primary-text-color);font:inherit}' +
-      '.device-field select:focus{outline:2px solid var(--primary-color);outline-offset:-1px}.hint{color:var(--secondary-text-color);font-size:.85rem;line-height:1.4}' +
-      '</style><div class="form"><div class="device-field"><label for="device">Airthings device</label><select id="device">' +
-      '<option value="">Select a device…</option>' +
-      (this._airthingsDevices || []).map((device) => '<option value="' + this._escape(device.id) + '"' +
-        (device.id === this._config.device_id ? ' selected' : '') + '>' + this._escape(device.name) + '</option>').join("") +
-      '</select></div><ha-textfield id="title" label="Title (optional)" value="' +
+      'ha-textfield,ha-select{width:100%}.device-field{display:grid;gap:7px}.device-title{font-size:.75rem;color:var(--secondary-text-color);padding-left:12px}' +
+      '.device-options{display:grid;gap:6px}.device-option{box-sizing:border-box;width:100%;min-height:48px;display:flex;align-items:center;gap:12px;padding:10px 13px;border:1px solid var(--divider-color,#777);border-radius:8px;background:var(--card-background-color);color:var(--primary-text-color);font:inherit;text-align:left;cursor:pointer}' +
+      '.device-option:hover{background:color-mix(in srgb,var(--primary-text-color) 6%,var(--card-background-color))}.device-option.selected{border-color:var(--primary-color);background:color-mix(in srgb,var(--primary-color) 10%,var(--card-background-color))}' +
+      '.radio{box-sizing:border-box;width:20px;height:20px;border:2px solid var(--secondary-text-color);border-radius:50%;display:grid;place-items:center;flex:0 0 auto}.selected .radio{border-color:var(--primary-color)}.selected .radio:after{content:"";width:10px;height:10px;border-radius:50%;background:var(--primary-color)}' +
+      '.device-name{flex:1}.empty-devices{padding:10px 12px;color:var(--secondary-text-color)}.hint{color:var(--secondary-text-color);font-size:.85rem;line-height:1.4}' +
+      '</style><div class="form"><div class="device-field"><div class="device-title">Airthings device</div><div class="device-options">' +
+      ((this._airthingsDevices || []).length ? (this._airthingsDevices || []).map((device) =>
+        '<button type="button" class="device-option' + (device.id === this._config.device_id ? ' selected' : '') +
+        '" data-device="' + this._escape(device.id) + '"><span class="radio" aria-hidden="true"></span><span class="device-name">' +
+        this._escape(device.name) + '</span></button>').join("") : '<div class="empty-devices">Loading Airthings devices…</div>') +
+      '</div></div><ha-textfield id="title" label="Title (optional)" value="' +
       String(this._config.title || "").replace(/"/g,"&quot;") + '"></ha-textfield>' +
       '<div class="row"><ha-textfield id="hours" label="History (hours)" type="number" min="1" max="168" value="' +
       this._config.hours + '"></ha-textfield><ha-select id="columns" label="Columns" value="' +
       this._config.columns + '"><mwc-list-item value="auto">Auto</mwc-list-item><mwc-list-item value="1">1</mwc-list-item>' +
       '<mwc-list-item value="2">2</mwc-list-item><mwc-list-item value="3">3</mwc-list-item></ha-select></div>' +
       '<div class="hint">The card automatically finds supported sensors exposed by the selected device: radon, CO₂, VOC, temperature, humidity and pressure.</div></div>';
-    const picker = this.shadowRoot.querySelector("#device");
-    picker.addEventListener("change", (event) => {
-      const deviceId = event.target.value || "";
+    this.shadowRoot.querySelectorAll(".device-option").forEach((option) => option.addEventListener("click", () => {
+      const deviceId = option.dataset.device || "";
       if (deviceId === (this._config.device_id || "")) return;
       const patch = { device_id: deviceId };
       if (deviceId && Array.isArray(this._config.entities)) patch.entities = undefined;
       this._change(patch);
-    });
+    }));
     this.shadowRoot.querySelector("#title").addEventListener("change", (event) => this._change({ title: event.target.value }));
     this.shadowRoot.querySelector("#hours").addEventListener("change", (event) =>
       this._change({ hours: Math.max(1, Math.min(168, Number(event.target.value) || 24)) }));
