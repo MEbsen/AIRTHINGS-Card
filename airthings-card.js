@@ -1,4 +1,4 @@
-const VERSION = "0.2.1";
+const VERSION = "0.2.2";
 const COLORS = {
   good: "#45b97c", fair: "#e8b931", poor: "#ef8d32",
   high: "#e05252", neutral: "#55a9c9", unavailable: "#8a949c"
@@ -277,12 +277,22 @@ class AirthingsCardEditor extends HTMLElement {
       '<mwc-list-item value="2">2</mwc-list-item><mwc-list-item value="3">3</mwc-list-item></ha-select></div>' +
       '<div class="hint">The card automatically finds supported sensors exposed by the selected device: radon, CO₂, VOC, temperature, humidity and pressure.</div></div>';
     const picker = this.shadowRoot.querySelector("#device");
-    picker.addEventListener("selected", (event) => {
-      const deviceId = event.target.value;
-      const patch = { device_id: deviceId };
-      if (deviceId && Array.isArray(this._config.entities)) patch.entities = undefined;
-      this._change(patch);
-    });
+    const selectDevice = (event) => {
+      const applySelection = () => {
+        const detailValue = event.detail && typeof event.detail.value === "string"
+          ? event.detail.value : "";
+        const deviceId = detailValue || picker.value || "";
+        if (deviceId === (this._config.device_id || "")) return;
+        const patch = { device_id: deviceId };
+        if (deviceId && Array.isArray(this._config.entities)) patch.entities = undefined;
+        this._change(patch);
+      };
+      if (event.type === "selected") queueMicrotask(applySelection);
+      else applySelection();
+    };
+    picker.addEventListener("value-changed", selectDevice);
+    picker.addEventListener("change", selectDevice);
+    picker.addEventListener("selected", selectDevice);
     this.shadowRoot.querySelector("#title").addEventListener("change", (event) => this._change({ title: event.target.value }));
     this.shadowRoot.querySelector("#hours").addEventListener("change", (event) =>
       this._change({ hours: Math.max(1, Math.min(168, Number(event.target.value) || 24)) }));
