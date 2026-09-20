@@ -3,7 +3,7 @@
 A responsive Home Assistant card for one Airthings device. Each measurement
 combines its current value, health colour and recent history in one glance.
 
-> **Status:** v0.2.3 preview. The YAML API can change before v1.0.
+> **Status:** v0.2.4 preview. The YAML API can change before v1.0.
 
 ![Two responsive Airthings Card concepts](docs/concepts.svg)
 
@@ -36,7 +36,7 @@ Resource type: **JavaScript module**.
 ## First configuration
 
 Add **Custom: Airthings Card** from Home Assistant's card picker. The card starts
-without a preselected device. Choose one from the **Airthings device** dropdown;
+without a preselected device. Choose one from the **Airthings device** radio list;
 the list contains devices exposing supported air-quality sensors, and the card
 then discovers their sensors automatically.
 YAML remains available:
