@@ -3,7 +3,7 @@
 A responsive Home Assistant card for one Airthings device. Each measurement
 combines its current value, health colour and recent history in one glance.
 
-> **Status:** v0.3.1 preview. The YAML API can change before v1.0.
+> **Status:** v0.4.0 preview. The YAML API can change before v1.0.
 
 ![Two responsive Airthings Card concepts](docs/concepts.svg)
 
@@ -46,6 +46,17 @@ type: custom:airthings-card
 device_id: 0123456789abcdef
 title: Bedroom # optional
 hours: 24
+sensor_order:
+  - radon
+  - co2
+  - temperature
+  - humidity
+  - voc
+  - pressure
+  - light
+  - noise
+  - pm25
+  - pm1
 ~~~
 
 The visual editor writes the device ID for you. Existing configurations using
@@ -58,9 +69,10 @@ the manual entities list remain supported as a fallback.
 - Model-dependent support for radon, PM2.5, PM1, CO₂, VOC, temperature,
   humidity, pressure, noise and light.
 - Battery icon and exact percentage beside the device name.
-- Stable measurement order across cards: radon, PM2.5, PM1, CO₂, VOC,
-  temperature, humidity, pressure, noise and light. Unsupported measurements
-  are skipped without changing the relative order of the remaining tiles.
+- Configurable measurement order with accessible up/down controls. The default
+  is radon, CO₂, temperature, humidity, VOC, pressure, light, noise, PM2.5 and
+  PM1. Unsupported measurements are skipped without changing the relative
+  order of the remaining tiles.
 - Responsive card and SVG sparklines.
 - Automatic column count based on the width assigned by the dashboard layout.
 - History from Home Assistant recorder API.
