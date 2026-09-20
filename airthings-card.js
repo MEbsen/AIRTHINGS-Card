@@ -1,4 +1,4 @@
-const VERSION = "0.1.0-dev.1";
+const VERSION = "0.1.0";
 const COLORS = {
   good: "#45b97c", fair: "#e8b931", poor: "#ef8d32",
   high: "#e05252", neutral: "#55a9c9", unavailable: "#8a949c"
@@ -13,6 +13,25 @@ const PRESETS = {
 };
 
 class AirthingsCard extends HTMLElement {
+  static async getConfigElement() {
+    return document.createElement("airthings-card-editor");
+  }
+
+  static getStubConfig(hass) {
+    const byName = (term) => Object.keys(hass.states).find((id) =>
+      id.startsWith("sensor.") && id.toLowerCase().includes(term));
+    return {
+      title: "Airthings",
+      hours: 24,
+      columns: "auto",
+      entities: [
+        ["radon", "radon"], ["co2", "co2"], ["voc", "voc"],
+        ["temperature", "temperature"], ["humidity", "humidity"], ["pressure", "pressure"]
+      ].map(([type, term]) => ({ type: type, entity: byName(term) || "" }))
+       .filter((item) => item.entity)
+    };
+  }
+
   setConfig(config) {
     if (!Array.isArray(config.entities) || !config.entities.length) {
       throw new Error("Airthings Card requires at least one entity");
@@ -158,7 +177,72 @@ class AirthingsCard extends HTMLElement {
   }
 }
 
+class AirthingsCardEditor extends HTMLElement {
+  setConfig(config) {
+    this._config = Object.assign({ title: "Airthings", hours: 24, columns: "auto", entities: [] }, config);
+    if (!this.shadowRoot) this.attachShadow({ mode: "open" });
+    this._renderEditor();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._renderEditor();
+  }
+
+  _item(type) {
+    return this._config.entities.find((item) => typeof item !== "string" && item.type === type) || {};
+  }
+
+  _change(patch) {
+    this._config = Object.assign({}, this._config, patch);
+    this.dispatchEvent(new CustomEvent("config-changed", {
+      bubbles: true, composed: true, detail: { config: this._config }
+    }));
+    this._renderEditor();
+  }
+
+  _setEntity(type, entity) {
+    const entities = this._config.entities.filter((item) =>
+      typeof item === "string" || item.type !== type);
+    if (entity) entities.push(Object.assign({}, this._item(type), { type: type, entity: entity }));
+    this._change({ entities: entities });
+  }
+
+  _renderEditor() {
+    if (!this.shadowRoot || !this._config) return;
+    const fields = Object.keys(PRESETS).map((type) => {
+      const preset = PRESETS[type];
+      const item = this._item(type);
+      return '<div class="field"><ha-entity-picker data-type="' + type +
+        '" label="' + preset.name + '" value="' + (item.entity || "") +
+        '" allow-custom-entity></ha-entity-picker></div>';
+    }).join("");
+    this.shadowRoot.innerHTML = '<style>' +
+      ':host{display:block}.form{display:grid;gap:14px;padding:8px 0}.row{display:grid;grid-template-columns:2fr 1fr;gap:12px}' +
+      'ha-textfield,ha-select,ha-entity-picker{width:100%}.hint{color:var(--secondary-text-color);font-size:.85rem;line-height:1.4}' +
+      '</style><div class="form"><ha-textfield id="title" label="Title" value="' +
+      String(this._config.title || "").replace(/"/g,"&quot;") + '"></ha-textfield>' +
+      '<div class="row"><ha-textfield id="hours" label="History (hours)" type="number" min="1" max="168" value="' +
+      this._config.hours + '"></ha-textfield><ha-select id="columns" label="Columns" value="' +
+      this._config.columns + '"><mwc-list-item value="auto">Auto</mwc-list-item><mwc-list-item value="1">1</mwc-list-item>' +
+      '<mwc-list-item value="2">2</mwc-list-item><mwc-list-item value="3">3</mwc-list-item></ha-select></div>' +
+      '<div class="hint">Choose the sensors belonging to this physical Airthings device. Empty measurements are hidden.</div>' +
+      fields + '</div>';
+    this.shadowRoot.querySelector("#title").addEventListener("change", (event) => this._change({ title: event.target.value }));
+    this.shadowRoot.querySelector("#hours").addEventListener("change", (event) =>
+      this._change({ hours: Math.max(1, Math.min(168, Number(event.target.value) || 24)) }));
+    this.shadowRoot.querySelector("#columns").addEventListener("selected", (event) =>
+      this._change({ columns: event.target.value }));
+    this.shadowRoot.querySelectorAll("ha-entity-picker").forEach((picker) => {
+      picker.hass = this._hass;
+      picker.includeDomains = ["sensor"];
+      picker.addEventListener("value-changed", (event) => this._setEntity(picker.dataset.type, event.detail.value));
+    });
+  }
+}
+
 customElements.define("airthings-card", AirthingsCard);
+customElements.define("airthings-card-editor", AirthingsCardEditor);
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "airthings-card", name: "Airthings Card",

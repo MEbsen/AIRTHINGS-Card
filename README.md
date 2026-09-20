@@ -3,7 +3,7 @@
 A responsive Home Assistant card for one Airthings device. Each measurement
 combines its current value, health colour and recent history in one glance.
 
-> **Status:** early development preview. The YAML API can change before v1.0.
+> **Status:** v0.1.0 preview. The YAML API can change before v1.0.
 
 ![Two responsive Airthings Card concepts](docs/concepts.svg)
 
@@ -35,6 +35,10 @@ Resource type: **JavaScript module**.
 
 ## First configuration
 
+Add **Custom: Airthings Card** from Home Assistant's card picker. The visual
+editor lets you select the six sensors belonging to one physical Airthings
+device. Empty measurements are hidden. YAML remains available for advanced use:
+
 ~~~yaml
 type: custom:airthings-card
 title: Bedroom
@@ -59,6 +63,7 @@ Preview presets: radon, co2, voc, temperature, humidity and pressure.
 
 ## Current preview
 
+- Visual editor with Home Assistant entity pickers.
 - Responsive card and SVG sparklines.
 - History from Home Assistant recorder API.
 - Threshold colour on current value and individual graph segments.
@@ -67,7 +72,6 @@ Preview presets: radon, co2, voc, temperature, humidity and pressure.
 
 ## Planned before v1.0
 
-- Visual editor with entity picker.
 - Automatic grouping/discovery from an Airthings HA device.
 - Editor controls for time range, thresholds and graph detail.
 - Optional compact layout and per-device summary.
