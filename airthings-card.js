@@ -1,4 +1,4 @@
-const VERSION = "0.4.0";
+const VERSION = "0.5.0";
 const COLORS = {
   good: "#20a464", fair: "#e8bd24", poor: "#ef7b22",
   high: "#d93645", neutral: "#4395c6", unavailable: "#7f8a93"
@@ -21,6 +21,11 @@ function normalizedSensorOrder(value) {
   const configured = Array.isArray(value) ? value.filter((type, index, order) =>
     DEFAULT_SENSOR_ORDER.includes(type) && order.indexOf(type) === index) : [];
   return configured.concat(DEFAULT_SENSOR_ORDER.filter((type) => !configured.includes(type)));
+}
+
+function normalizedHiddenSensors(value) {
+  return Array.isArray(value) ? value.filter((type, index, hidden) =>
+    DEFAULT_SENSOR_ORDER.includes(type) && hidden.indexOf(type) === index) : [];
 }
 
 function sensorType(entityId, state) {
@@ -52,8 +57,8 @@ class AirthingsCard extends HTMLElement {
   setConfig(config) {
     const previousDevice = this._config && this._config.device_id;
     this._config = Object.assign({ title: "Airthings", hours: 24 }, config);
+    this._resolvingDevice = "";
     if (previousDevice !== this._config.device_id) {
-      this._resolvingDevice = "";
       this._batteryEntity = "";
     }
     this._history = new Map();
@@ -103,7 +108,7 @@ class AirthingsCard extends HTMLElement {
           selected.set(type, { score: score, entity: entry.entity_id, type: type });
         }
       });
-      this._effectiveEntities = this._sensorOrder().filter((type) => selected.has(type))
+      this._effectiveEntities = this._sensorOrder().filter((type) => selected.has(type) && !this._sensorHidden(type))
         .map((type) => ({ entity: selected.get(type).entity, type: type }));
       this._historyKey = "";
       this._render();
@@ -130,9 +135,17 @@ class AirthingsCard extends HTMLElement {
     return normalizedSensorOrder(this._config && this._config.sensor_order);
   }
 
+  _sensorHidden(type) {
+    return normalizedHiddenSensors(this._config && this._config.hidden_sensors).includes(type);
+  }
+
   _orderedEntities() {
     const order = this._sensorOrder();
-    return (this._effectiveEntities || []).slice().sort((left, right) => {
+    return (this._effectiveEntities || []).filter((raw) => {
+      const item = typeof raw === "string" ? { entity: raw } : raw;
+      const type = item.type || sensorType(item.entity, this._hass && this._hass.states[item.entity]);
+      return !this._sensorHidden(type);
+    }).sort((left, right) => {
       const leftItem = typeof left === "string" ? { entity: left } : left;
       const rightItem = typeof right === "string" ? { entity: right } : right;
       const leftType = leftItem.type || sensorType(leftItem.entity, this._hass && this._hass.states[leftItem.entity]);
@@ -331,7 +344,7 @@ class AirthingsCardEditor extends HTMLElement {
       '.radio{box-sizing:border-box;width:20px;height:20px;border:2px solid var(--secondary-text-color);border-radius:50%;display:grid;place-items:center;flex:0 0 auto}.selected .radio{border-color:var(--primary-color)}.selected .radio:after{content:"";width:10px;height:10px;border-radius:50%;background:var(--primary-color)}' +
       '.device-name{flex:1}.empty-devices{padding:10px 12px;color:var(--secondary-text-color)}.hint{color:var(--secondary-text-color);font-size:.85rem;line-height:1.4}' +
       '.order-field{display:grid;gap:7px}.order-title{display:flex;align-items:center;justify-content:space-between;font-size:.75rem;color:var(--secondary-text-color);padding-left:12px}.reset-order{border:0;background:transparent;color:var(--primary-color);font:inherit;font-size:.75rem;cursor:pointer;padding:4px 8px}' +
-      '.order-list{display:grid;gap:4px}.order-item{display:flex;align-items:center;gap:8px;min-height:38px;padding:4px 6px 4px 12px;border-radius:7px;background:color-mix(in srgb,var(--primary-text-color) 5%,transparent)}.order-item ha-icon{width:18px;height:18px;color:var(--secondary-text-color)}.order-name{flex:1}.move{width:34px;height:32px;display:grid;place-items:center;border:0;border-radius:6px;background:transparent;color:var(--primary-text-color);cursor:pointer}.move:hover{background:color-mix(in srgb,var(--primary-text-color) 10%,transparent)}.move:disabled{opacity:.25;cursor:default}' +
+      '.order-list{display:grid;gap:4px}.order-item{display:flex;align-items:center;gap:8px;min-height:38px;padding:4px 6px 4px 12px;border-radius:7px;background:color-mix(in srgb,var(--primary-text-color) 5%,transparent)}.order-item.hidden{opacity:.55}.order-item ha-icon{width:18px;height:18px;color:var(--secondary-text-color)}.order-name{flex:1}.move,.visibility{width:34px;height:32px;display:grid;place-items:center;border:0;border-radius:6px;background:transparent;color:var(--primary-text-color);cursor:pointer}.move:hover,.visibility:hover{background:color-mix(in srgb,var(--primary-text-color) 10%,transparent)}.move:disabled{opacity:.25;cursor:default}.visibility ha-icon{color:var(--primary-text-color)}' +
       '</style><div class="form"><div class="device-field"><div class="device-title">Airthings device</div><div class="device-options">' +
       ((this._airthingsDevices || []).length ? (this._airthingsDevices || []).map((device) =>
         '<button type="button" class="device-option' + (device.id === this._config.device_id ? ' selected' : '') +
@@ -341,11 +354,14 @@ class AirthingsCardEditor extends HTMLElement {
       String(this._config.title || "").replace(/"/g,"&quot;") + '"></ha-textfield>' +
       '<ha-textfield id="hours" label="History (hours)" type="number" min="1" max="168" value="' +
       this._config.hours + '"></ha-textfield><div class="order-field"><div class="order-title"><span>Measurement order</span><button type="button" class="reset-order">Reset order</button></div><div class="order-list">' +
-      this._editorOrder().map((type, index, order) => '<div class="order-item"><ha-icon icon="' + PRESETS[type].icon + '"></ha-icon><span class="order-name">' +
-        PRESETS[type].name + '</span><button type="button" class="move" data-type="' + type + '" data-direction="up" aria-label="Move ' + PRESETS[type].name + ' up"' +
+      this._editorOrder().map((type, index, order) => {
+        const hidden = this._editorHidden().includes(type);
+        return '<div class="order-item' + (hidden ? ' hidden' : '') + '"><ha-icon icon="' + PRESETS[type].icon + '"></ha-icon><span class="order-name">' +
+        PRESETS[type].name + '</span><button type="button" class="visibility" data-type="' + type + '" aria-label="' + (hidden ? 'Show ' : 'Hide ') + PRESETS[type].name + '" title="' + (hidden ? 'Show sensor' : 'Hide sensor') + '"><ha-icon icon="' + (hidden ? 'mdi:eye-off' : 'mdi:eye') + '"></ha-icon></button><button type="button" class="move" data-type="' + type + '" data-direction="up" aria-label="Move ' + PRESETS[type].name + ' up"' +
         (index === 0 ? ' disabled' : '') + '><ha-icon icon="mdi:chevron-up"></ha-icon></button><button type="button" class="move" data-type="' + type +
         '" data-direction="down" aria-label="Move ' + PRESETS[type].name + ' down"' + (index === order.length - 1 ? ' disabled' : '') +
-        '><ha-icon icon="mdi:chevron-down"></ha-icon></button></div>').join("") + '</div></div>' +
+        '><ha-icon icon="mdi:chevron-down"></ha-icon></button></div>';
+      }).join("") + '</div></div>' +
       '<div class="hint">The card finds radon, PM2.5, PM1, CO₂, VOC, temperature, humidity, pressure, noise and light sensors exposed by the selected device. Battery is shown in the header.</div></div>';
     this.shadowRoot.querySelectorAll(".device-option").forEach((option) => option.addEventListener("click", () => {
       const deviceId = option.dataset.device || "";
@@ -365,12 +381,22 @@ class AirthingsCardEditor extends HTMLElement {
       [order[index], order[target]] = [order[target], order[index]];
       this._change({ sensor_order: order });
     }));
+    this.shadowRoot.querySelectorAll(".visibility").forEach((button) => button.addEventListener("click", () => {
+      const hidden = this._editorHidden();
+      const type = button.dataset.type;
+      const next = hidden.includes(type) ? hidden.filter((item) => item !== type) : hidden.concat(type);
+      this._change({ hidden_sensors: next.length ? next : undefined });
+    }));
     this.shadowRoot.querySelector(".reset-order").addEventListener("click", () =>
       this._change({ sensor_order: undefined }));
   }
 
   _editorOrder() {
     return normalizedSensorOrder(this._config && this._config.sensor_order);
+  }
+
+  _editorHidden() {
+    return normalizedHiddenSensors(this._config && this._config.hidden_sensors);
   }
 
   async _loadDevices() {
