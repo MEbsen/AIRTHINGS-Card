@@ -1,4 +1,4 @@
-const VERSION = "0.2.4";
+const VERSION = "0.2.5";
 const COLORS = {
   good: "#45b97c", fair: "#e8b931", poor: "#ef8d32",
   high: "#e05252", neutral: "#55a9c9", unavailable: "#8a949c"
@@ -32,12 +32,12 @@ class AirthingsCard extends HTMLElement {
   }
 
   static getStubConfig(hass) {
-    return { title: "Airthings", hours: 24, columns: "auto" };
+    return { title: "Airthings", hours: 24 };
   }
 
   setConfig(config) {
     const previousDevice = this._config && this._config.device_id;
-    this._config = Object.assign({ title: "Airthings", hours: 24, columns: "auto" }, config);
+    this._config = Object.assign({ title: "Airthings", hours: 24 }, config);
     if (previousDevice !== this._config.device_id) this._resolvingDevice = "";
     this._history = new Map();
     this._historyKey = "";
@@ -188,9 +188,6 @@ class AirthingsCard extends HTMLElement {
     const rank = { "#e05252": 4, "#ef8d32": 3, "#e8b931": 2, "#45b97c": 1 };
     const overall = models.filter((model) => model.available)
       .sort((a,b) => (rank[b.status.color] || 0) - (rank[a.status.color] || 0))[0];
-    const columns = this._config.columns === "auto"
-      ? "repeat(auto-fit,minmax(min(190px,100%),1fr))"
-      : "repeat(" + (Number(this._config.columns) || 2) + ",1fr)";
     const cards = models.map((model) =>
       '<button class="metric" data-entity="' + this._escape(model.item.entity) + '" style="--quality:' + model.status.color + '">' +
       '<div class="label"><ha-icon icon="' + this._escape(model.icon) + '"></ha-icon><span>' + this._escape(model.name) + '</span></div>' +
@@ -211,7 +208,7 @@ class AirthingsCard extends HTMLElement {
       'ha-card{overflow:hidden;background:var(--at-bg);color:var(--primary-text-color);padding:18px;border-radius:var(--ha-card-border-radius,12px)}' +
       '.head{display:flex;align-items:center;gap:12px;margin:0 2px 16px}.title{font-size:1.35rem;font-weight:600;min-width:0;flex:1}.subtitle{font-size:.78rem;color:var(--secondary-text-color);margin-top:2px}' +
       '.badge{border-radius:999px;padding:6px 11px;font-weight:650;font-size:.78rem;background:color-mix(in srgb,var(--quality) 20%,transparent);color:var(--quality)}' +
-      '.grid{display:grid;grid-template-columns:' + columns + ';gap:10px}.metric{box-sizing:border-box;min-width:0;height:142px;border:0;border-radius:14px;padding:13px;background:var(--at-tile);color:inherit;text-align:left;position:relative;cursor:pointer;overflow:hidden}' +
+      '.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr));gap:10px}.metric{box-sizing:border-box;min-width:0;height:142px;border:0;border-radius:14px;padding:13px;background:var(--at-tile);color:inherit;text-align:left;position:relative;cursor:pointer;overflow:hidden}' +
       '.metric:hover{background:color-mix(in srgb,var(--primary-text-color,#fff) 10%,transparent)}.label{display:flex;align-items:center;gap:7px;font-size:.94rem;color:var(--secondary-text-color)}ha-icon{width:19px;height:19px}' +
       '.reading{margin-top:10px;line-height:1;color:var(--quality);white-space:nowrap}.value{font-size:1.9rem;font-weight:620;letter-spacing:-.04em}.unit{font-size:.82rem;margin-left:4px;color:var(--secondary-text-color)}' +
       '.status{font-size:.78rem;font-weight:650;color:var(--quality);margin-top:7px}.spark{position:absolute;left:11px;right:11px;bottom:8px;width:calc(100% - 22px);height:35px;overflow:visible}.spark line{stroke-width:2.4;stroke-linecap:round;vector-effect:non-scaling-stroke}.guide{stroke:var(--divider-color,rgba(128,128,128,.22));stroke-width:1;vector-effect:non-scaling-stroke}' +
@@ -239,7 +236,7 @@ class AirthingsCard extends HTMLElement {
 
 class AirthingsCardEditor extends HTMLElement {
   setConfig(config) {
-    this._config = Object.assign({ title: "Airthings", hours: 24, columns: "auto", entities: [] }, config);
+    this._config = Object.assign({ title: "Airthings", hours: 24, entities: [] }, config);
     if (!this.shadowRoot) this.attachShadow({ mode: "open" });
     this._renderEditor();
   }
@@ -267,8 +264,8 @@ class AirthingsCardEditor extends HTMLElement {
   _renderEditor() {
     if (!this.shadowRoot || !this._config) return;
     this.shadowRoot.innerHTML = '<style>' +
-      ':host{display:block}.form{display:grid;gap:14px;padding:8px 0}.row{display:grid;grid-template-columns:2fr 1fr;gap:12px}' +
-      'ha-textfield,ha-select{width:100%}.device-field{display:grid;gap:7px}.device-title{font-size:.75rem;color:var(--secondary-text-color);padding-left:12px}' +
+      ':host{display:block}.form{display:grid;gap:14px;padding:8px 0}' +
+      'ha-textfield{width:100%}.device-field{display:grid;gap:7px}.device-title{font-size:.75rem;color:var(--secondary-text-color);padding-left:12px}' +
       '.device-options{display:grid;gap:6px}.device-option{box-sizing:border-box;width:100%;min-height:48px;display:flex;align-items:center;gap:12px;padding:10px 13px;border:1px solid var(--divider-color,#777);border-radius:8px;background:var(--card-background-color);color:var(--primary-text-color);font:inherit;text-align:left;cursor:pointer}' +
       '.device-option:hover{background:color-mix(in srgb,var(--primary-text-color) 6%,var(--card-background-color))}.device-option.selected{border-color:var(--primary-color);background:color-mix(in srgb,var(--primary-color) 10%,var(--card-background-color))}' +
       '.radio{box-sizing:border-box;width:20px;height:20px;border:2px solid var(--secondary-text-color);border-radius:50%;display:grid;place-items:center;flex:0 0 auto}.selected .radio{border-color:var(--primary-color)}.selected .radio:after{content:"";width:10px;height:10px;border-radius:50%;background:var(--primary-color)}' +
@@ -280,11 +277,9 @@ class AirthingsCardEditor extends HTMLElement {
         this._escape(device.name) + '</span></button>').join("") : '<div class="empty-devices">Loading Airthings devices…</div>') +
       '</div></div><ha-textfield id="title" label="Title (optional)" value="' +
       String(this._config.title || "").replace(/"/g,"&quot;") + '"></ha-textfield>' +
-      '<div class="row"><ha-textfield id="hours" label="History (hours)" type="number" min="1" max="168" value="' +
-      this._config.hours + '"></ha-textfield><ha-select id="columns" label="Columns" value="' +
-      this._config.columns + '"><mwc-list-item value="auto">Auto</mwc-list-item><mwc-list-item value="1">1</mwc-list-item>' +
-      '<mwc-list-item value="2">2</mwc-list-item><mwc-list-item value="3">3</mwc-list-item></ha-select></div>' +
-      '<div class="hint">The card automatically finds supported sensors exposed by the selected device: radon, CO₂, VOC, temperature, humidity and pressure.</div></div>';
+      '<ha-textfield id="hours" label="History (hours)" type="number" min="1" max="168" value="' +
+      this._config.hours + '"></ha-textfield>' +
+      '<div class="hint">The card automatically finds supported sensors exposed by the selected device and chooses the number of columns from the available card width.</div></div>';
     this.shadowRoot.querySelectorAll(".device-option").forEach((option) => option.addEventListener("click", () => {
       const deviceId = option.dataset.device || "";
       if (deviceId === (this._config.device_id || "")) return;
@@ -295,8 +290,6 @@ class AirthingsCardEditor extends HTMLElement {
     this.shadowRoot.querySelector("#title").addEventListener("change", (event) => this._change({ title: event.target.value }));
     this.shadowRoot.querySelector("#hours").addEventListener("change", (event) =>
       this._change({ hours: Math.max(1, Math.min(168, Number(event.target.value) || 24)) }));
-    this.shadowRoot.querySelector("#columns").addEventListener("selected", (event) =>
-      this._change({ columns: event.target.value }));
   }
 
   async _loadDevices() {
