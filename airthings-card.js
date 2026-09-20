@@ -1,4 +1,4 @@
-const VERSION = "0.2.0";
+const VERSION = "0.2.1";
 const COLORS = {
   good: "#45b97c", fair: "#e8b931", poor: "#ef8d32",
   high: "#e05252", neutral: "#55a9c9", unavailable: "#8a949c"
@@ -32,31 +32,10 @@ class AirthingsCard extends HTMLElement {
   }
 
   static getStubConfig(hass) {
-    const registry = hass.entities || {};
-    const firstAirthings = Object.entries(registry).find(([entityId, entry]) =>
-      entry.device_id && entityId.startsWith("sensor.") &&
-      /airthings|radon/.test((entityId + " " + (entry.platform || "")).toLowerCase()));
-    if (firstAirthings) {
-      return { title: "Airthings", hours: 24, columns: "auto", device_id: firstAirthings[1].device_id };
-    }
-    const byName = (term) => Object.keys(hass.states).find((id) =>
-      id.startsWith("sensor.") && id.toLowerCase().includes(term));
-    return {
-      title: "Airthings",
-      hours: 24,
-      columns: "auto",
-      entities: [
-        ["radon", "radon"], ["co2", "co2"], ["voc", "voc"],
-        ["temperature", "temperature"], ["humidity", "humidity"], ["pressure", "pressure"]
-      ].map(([type, term]) => ({ type: type, entity: byName(term) || "" }))
-       .filter((item) => item.entity)
-    };
+    return { title: "Airthings", hours: 24, columns: "auto" };
   }
 
   setConfig(config) {
-    if (!config.device_id && (!Array.isArray(config.entities) || !config.entities.length)) {
-      throw new Error("Airthings Card requires an Airthings device");
-    }
     const previousDevice = this._config && this._config.device_id;
     this._config = Object.assign({ title: "Airthings", hours: 24, columns: "auto" }, config);
     if (previousDevice !== this._config.device_id) this._resolvingDevice = "";
@@ -223,7 +202,9 @@ class AirthingsCard extends HTMLElement {
     const title = this._config.title && this._config.title !== "Airthings"
       ? this._config.title : device && (device.name_by_user || device.name) || this._config.title;
     const empty = !models.length
-      ? '<div class="empty">No supported sensors found for this device.<br><small>Check that its entities are enabled in Home Assistant.</small></div>'
+      ? '<div class="empty">' + (this._config.device_id
+        ? 'No supported sensors found for this device.<br><small>Check that its entities are enabled in Home Assistant.</small>'
+        : 'Select an Airthings device in the card configuration.') + '</div>'
       : '<div class="grid">' + cards + '</div>';
     this.shadowRoot.innerHTML = '<style>' +
       ':host{display:block;container-type:inline-size;--at-bg:var(--ha-card-background,var(--card-background-color,#1c252a));--at-tile:color-mix(in srgb,var(--primary-text-color,#fff) 6%,transparent)}' +
@@ -266,10 +247,14 @@ class AirthingsCardEditor extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     this._renderEditor();
+    this._loadDevices();
   }
 
   _change(patch) {
     this._config = Object.assign({}, this._config, patch);
+    Object.keys(this._config).forEach((key) => {
+      if (this._config[key] === undefined) delete this._config[key];
+    });
     this.dispatchEvent(new CustomEvent("config-changed", {
       bubbles: true, composed: true, detail: { config: this._config }
     }));
@@ -280,9 +265,11 @@ class AirthingsCardEditor extends HTMLElement {
     if (!this.shadowRoot || !this._config) return;
     this.shadowRoot.innerHTML = '<style>' +
       ':host{display:block}.form{display:grid;gap:14px;padding:8px 0}.row{display:grid;grid-template-columns:2fr 1fr;gap:12px}' +
-      'ha-textfield,ha-select,ha-device-picker{width:100%}.hint{color:var(--secondary-text-color);font-size:.85rem;line-height:1.4}' +
-      '</style><div class="form"><ha-device-picker id="device" label="Airthings device" value="' +
-      (this._config.device_id || "") + '"></ha-device-picker><ha-textfield id="title" label="Title (optional)" value="' +
+      'ha-textfield,ha-select{width:100%}.hint{color:var(--secondary-text-color);font-size:.85rem;line-height:1.4}' +
+      '</style><div class="form"><ha-select id="device" label="Airthings device" value="' +
+      (this._config.device_id || "") + '"><mwc-list-item value="">Select a device…</mwc-list-item>' +
+      (this._airthingsDevices || []).map((device) => '<mwc-list-item value="' + this._escape(device.id) + '">' +
+        this._escape(device.name) + '</mwc-list-item>').join("") + '</ha-select><ha-textfield id="title" label="Title (optional)" value="' +
       String(this._config.title || "").replace(/"/g,"&quot;") + '"></ha-textfield>' +
       '<div class="row"><ha-textfield id="hours" label="History (hours)" type="number" min="1" max="168" value="' +
       this._config.hours + '"></ha-textfield><ha-select id="columns" label="Columns" value="' +
@@ -290,14 +277,56 @@ class AirthingsCardEditor extends HTMLElement {
       '<mwc-list-item value="2">2</mwc-list-item><mwc-list-item value="3">3</mwc-list-item></ha-select></div>' +
       '<div class="hint">The card automatically finds supported sensors exposed by the selected device: radon, CO₂, VOC, temperature, humidity and pressure.</div></div>';
     const picker = this.shadowRoot.querySelector("#device");
-    picker.hass = this._hass;
-    picker.addEventListener("value-changed", (event) =>
-      this._change({ device_id: event.detail.value }));
+    picker.addEventListener("selected", (event) => {
+      const deviceId = event.target.value;
+      const patch = { device_id: deviceId };
+      if (deviceId && Array.isArray(this._config.entities)) patch.entities = undefined;
+      this._change(patch);
+    });
     this.shadowRoot.querySelector("#title").addEventListener("change", (event) => this._change({ title: event.target.value }));
     this.shadowRoot.querySelector("#hours").addEventListener("change", (event) =>
       this._change({ hours: Math.max(1, Math.min(168, Number(event.target.value) || 24)) }));
     this.shadowRoot.querySelector("#columns").addEventListener("selected", (event) =>
       this._change({ columns: event.target.value }));
+  }
+
+  async _loadDevices() {
+    if (!this._hass || this._loadingDevices || this._airthingsDevices) return;
+    this._loadingDevices = true;
+    try {
+      const [entityRegistry, deviceRegistry] = await Promise.all([
+        this._hass.entities
+          ? Object.entries(this._hass.entities).map(([entity_id, entry]) => Object.assign({ entity_id: entity_id }, entry))
+          : this._hass.callWS({ type: "config/entity_registry/list" }),
+        this._hass.devices
+          ? Object.entries(this._hass.devices).map(([id, device]) => Object.assign({ id: id }, device))
+          : this._hass.callWS({ type: "config/device_registry/list" })
+      ]);
+      const devicesById = new Map(deviceRegistry.map((device) => [device.id, device]));
+      const supportedDeviceIds = new Set(entityRegistry.filter((entry) => {
+        const state = this._hass.states[entry.entity_id];
+        const device = devicesById.get(entry.device_id) || {};
+        const airthingsDevice = /airthings/i.test(String(entry.platform || "")) ||
+          /airthings/i.test(String(device.manufacturer || ""));
+        return entry.device_id && !entry.disabled_by && entry.entity_id.startsWith("sensor.") &&
+          airthingsDevice && state && sensorType(entry.entity_id, state);
+      }).map((entry) => entry.device_id));
+      this._airthingsDevices = deviceRegistry.filter((device) => supportedDeviceIds.has(device.id))
+        .map((device) => ({ id: device.id, name: device.name_by_user || device.name || device.id }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      this._renderEditor();
+    } catch (error) {
+      console.warn("Airthings Card could not load the device list", error);
+      this._airthingsDevices = [];
+      this._renderEditor();
+    } finally {
+      this._loadingDevices = false;
+    }
+  }
+
+  _escape(value) {
+    return String(value == null ? "" : value).replace(/[&<>"']/g,
+      (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" })[char]);
   }
 }
 
