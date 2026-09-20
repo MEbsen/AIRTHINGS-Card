@@ -1,4 +1,4 @@
-const VERSION = "0.3.0";
+const VERSION = "0.3.1";
 const COLORS = {
   good: "#20a464", fair: "#e8bd24", poor: "#ef7b22",
   high: "#d93645", neutral: "#4395c6", unavailable: "#7f8a93"
@@ -15,7 +15,7 @@ const PRESETS = {
   noise: { name: "Noise", icon: "mdi:volume-medium", limits: [[55,"good","Quiet"],[70,"fair","Noticeable"],[85,"poor","Loud"],[null,"high","High"]] },
   light: { name: "Light", icon: "mdi:brightness-6", limits: [[null,"neutral","Current"]] }
 };
-const SENSOR_TYPES = ["radon", "pm25", "pm1", "co2", "voc", "temperature", "humidity", "pressure", "noise", "light"];
+const SENSOR_ORDER = ["radon", "pm25", "pm1", "co2", "voc", "temperature", "humidity", "pressure", "noise", "light"];
 
 function sensorType(entityId, state) {
   const id = String(entityId || "").toLowerCase();
@@ -97,7 +97,7 @@ class AirthingsCard extends HTMLElement {
           selected.set(type, { score: score, entity: entry.entity_id, type: type });
         }
       });
-      this._effectiveEntities = SENSOR_TYPES.filter((type) => selected.has(type))
+      this._effectiveEntities = SENSOR_ORDER.filter((type) => selected.has(type))
         .map((type) => ({ entity: selected.get(type).entity, type: type }));
       this._historyKey = "";
       this._render();
@@ -120,6 +120,19 @@ class AirthingsCard extends HTMLElement {
     return score;
   }
 
+  _orderedEntities() {
+    return (this._effectiveEntities || []).slice().sort((left, right) => {
+      const leftItem = typeof left === "string" ? { entity: left } : left;
+      const rightItem = typeof right === "string" ? { entity: right } : right;
+      const leftType = leftItem.type || sensorType(leftItem.entity, this._hass && this._hass.states[leftItem.entity]);
+      const rightType = rightItem.type || sensorType(rightItem.entity, this._hass && this._hass.states[rightItem.entity]);
+      const leftIndex = SENSOR_ORDER.indexOf(leftType);
+      const rightIndex = SENSOR_ORDER.indexOf(rightType);
+      return (leftIndex < 0 ? SENSOR_ORDER.length : leftIndex) -
+        (rightIndex < 0 ? SENSOR_ORDER.length : rightIndex);
+    });
+  }
+
   _batteryModel() {
     const state = this._hass && this._hass.states[this._batteryEntity];
     const value = Number(state && state.state);
@@ -132,7 +145,7 @@ class AirthingsCard extends HTMLElement {
 
   async _loadHistory() {
     if (!this._hass || !this._config) return;
-    const entities = (this._effectiveEntities || []).map((item) => typeof item === "string" ? item : item.entity).filter(Boolean);
+    const entities = this._orderedEntities().map((item) => typeof item === "string" ? item : item.entity).filter(Boolean);
     const key = Math.floor(Date.now() / 300000) + ":" + this._config.hours + ":" + entities.join(",");
     if (!entities.length || key === this._historyKey) return;
     this._historyKey = key;
@@ -210,7 +223,7 @@ class AirthingsCard extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot || !this._config) return;
-    const entities = this._effectiveEntities || [];
+    const entities = this._orderedEntities();
     const models = entities.map((item) => this._model(item));
     const rank = { [COLORS.high]: 4, [COLORS.poor]: 3, [COLORS.fair]: 2, [COLORS.good]: 1 };
     const overall = models.filter((model) => model.available)
