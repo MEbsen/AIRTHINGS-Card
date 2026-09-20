@@ -37,6 +37,10 @@ values with quality colours, and draws colour-coded SVG history graphs.
 
 This repository is currently installed as a custom HACS repository:
 
+[![Open your Home Assistant instance and add this repository to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=MEbsen&repository=AIRTHINGS-Card&category=plugin)
+
+Use the button above for one-click setup, or add it manually:
+
 1. Open **HACS → Frontend**.
 2. Open the menu and choose **Custom repositories**.
 3. Add `https://github.com/MEbsen/AIRTHINGS-Card`.
