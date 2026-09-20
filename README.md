@@ -10,7 +10,7 @@ A responsive Home Assistant dashboard card for Airthings devices. Select one
 device and the card automatically discovers its measurements, shows the current
 values with quality colours, and draws colour-coded SVG history graphs.
 
-> **Preview:** v0.4.0. Configuration may change before v1.0.
+> **Preview:** v0.5.0. Configuration may change before v1.0.
 
 > **Unofficial project:** Airthings Card is an independent community project.
 > It is not affiliated with, endorsed by, or sponsored by Airthings ASA.
@@ -68,8 +68,9 @@ editor:
 
 1. Select an Airthings device from the radio list.
 2. Optionally change the title and history length.
-3. Use the arrow buttons to change measurement order, or select **Reset order**
-   to restore the default.
+3. Use the arrow buttons to change measurement order.
+4. Select the eye icon to hide or show a measurement, or select **Reset order**
+   to restore the default order.
 
 Only measurements exposed by the selected device are rendered. Missing sensor
 types are skipped without changing the relative order of the remaining tiles.
@@ -94,6 +95,9 @@ sensor_order:
   - noise
   - pm25
   - pm1
+hidden_sensors:
+  - pressure
+  - light
 ```
 
 | Option | Type | Default | Description |
@@ -102,6 +106,7 @@ sensor_order:
 | `title` | string | device name | Optional card title. |
 | `hours` | number | `24` | Recorder history window, from 1 to 168 hours. |
 | `sensor_order` | list | shown above | Relative order of supported measurements. Unknown and duplicate values are ignored. |
+| `hidden_sensors` | list | `[]` | Measurement types hidden from the card. The visual editor controls this with eye icons. |
 
 Existing configurations using the legacy manual `entities` list remain
 supported as a fallback.
