@@ -12,6 +12,9 @@ values with quality colours, and draws colour-coded SVG history graphs.
 
 > **Preview:** v0.4.0. Configuration may change before v1.0.
 
+> **Unofficial project:** Airthings Card is an independent community project.
+> It is not affiliated with, endorsed by, or sponsored by Airthings ASA.
+
 ![Airthings Card desktop and mobile layouts](docs/concepts.svg)
 
 ## Highlights
@@ -193,6 +196,13 @@ Assistant version, card version, Airthings model and relevant entity IDs.
 If Airthings Card is useful to you, you can support its continued development
 by [buying me a coffee](https://buymeacoffee.com/mebsen). Contributions are
 entirely optional; the card remains free and open source.
+
+## Trademark notice
+
+Airthings Card is an independent, unofficial open-source project and is not
+affiliated with, endorsed by, or sponsored by Airthings ASA. Airthings is a
+trademark of its respective owner. The name is used only to describe
+compatibility with Airthings devices.
 
 ## License
 
