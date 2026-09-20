@@ -3,7 +3,7 @@
 A responsive Home Assistant card for one Airthings device. Each measurement
 combines its current value, health colour and recent history in one glance.
 
-> **Status:** v0.2.2 preview. The YAML API can change before v1.0.
+> **Status:** v0.2.3 preview. The YAML API can change before v1.0.
 
 ![Two responsive Airthings Card concepts](docs/concepts.svg)
 
