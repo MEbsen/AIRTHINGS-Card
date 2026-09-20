@@ -4,6 +4,7 @@
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?logo=home-assistant-community-store)](https://hacs.xyz/docs/faq/custom_repositories/)
 [![Home Assistant 2024.8+](https://img.shields.io/badge/Home%20Assistant-2024.8%2B-18BCF2.svg?logo=homeassistant&logoColor=white)](https://www.home-assistant.io/)
 [![MIT License](https://img.shields.io/github/license/MEbsen/AIRTHINGS-Card)](LICENSE)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-FFDD00?logo=buymeacoffee&logoColor=000)](https://buymeacoffee.com/mebsen)
 
 A responsive Home Assistant dashboard card for Airthings devices. Select one
 device and the card automatically discovers its measurements, shows the current
@@ -186,6 +187,12 @@ Assistant version, card version, Airthings model and relevant entity IDs.
 - Optional compact layout and per-device summary.
 - Localised labels, including Danish.
 - Wider desktop, tablet and mobile test coverage.
+
+## Support
+
+If Airthings Card is useful to you, you can support its continued development
+by [buying me a coffee](https://buymeacoffee.com/mebsen). Contributions are
+entirely optional; the card remains free and open source.
 
 ## License
 
