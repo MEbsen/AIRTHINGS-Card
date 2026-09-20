@@ -1,28 +1,36 @@
-const VERSION = "0.2.5";
+const VERSION = "0.3.0";
 const COLORS = {
-  good: "#45b97c", fair: "#e8b931", poor: "#ef8d32",
-  high: "#e05252", neutral: "#55a9c9", unavailable: "#8a949c"
+  good: "#20a464", fair: "#e8bd24", poor: "#ef7b22",
+  high: "#d93645", neutral: "#4395c6", unavailable: "#7f8a93"
 };
 const PRESETS = {
   radon: { name: "Radon", icon: "mdi:radioactive", limits: [[100,"good","Good"],[200,"fair","Fair"],[300,"poor","Poor"],[null,"high","High"]] },
+  pm25: { name: "PM2.5", icon: "mdi:blur", limits: [[10,"good","Good"],[25,"fair","Fair"],[35,"poor","Poor"],[null,"high","High"]] },
+  pm1: { name: "PM1", icon: "mdi:dots-hexagon", limits: [[10,"good","Good"],[25,"fair","Fair"],[35,"poor","Poor"],[null,"high","High"]] },
   co2: { name: "CO₂", icon: "mdi:molecule-co2", limits: [[800,"good","Good"],[1000,"fair","Fair"],[1400,"poor","Poor"],[null,"high","High"]] },
   voc: { name: "VOC", icon: "mdi:weather-windy", limits: [[250,"good","Good"],[1000,"fair","Fair"],[2000,"poor","Poor"],[null,"high","High"]] },
   temperature: { name: "Temperature", icon: "mdi:thermometer", ranges: [[null,18,"fair","Cool"],[18,25,"good","Good"],[25,28,"fair","Warm"],[28,null,"poor","High"]] },
   humidity: { name: "Humidity", icon: "mdi:water-outline", ranges: [[null,30,"poor","Dry"],[30,40,"fair","Fair"],[40,60,"good","Good"],[60,70,"fair","Fair"],[70,null,"poor","High"]] },
-  pressure: { name: "Pressure", icon: "mdi:gauge", limits: [[null,"neutral","Stable"]] }
+  pressure: { name: "Pressure", icon: "mdi:gauge", limits: [[null,"neutral","Current"]] },
+  noise: { name: "Noise", icon: "mdi:volume-medium", limits: [[55,"good","Quiet"],[70,"fair","Noticeable"],[85,"poor","Loud"],[null,"high","High"]] },
+  light: { name: "Light", icon: "mdi:brightness-6", limits: [[null,"neutral","Current"]] }
 };
-const SENSOR_TYPES = ["radon", "co2", "voc", "temperature", "humidity", "pressure"];
+const SENSOR_TYPES = ["radon", "pm25", "pm1", "co2", "voc", "temperature", "humidity", "pressure", "noise", "light"];
 
 function sensorType(entityId, state) {
   const id = String(entityId || "").toLowerCase();
   const deviceClass = String(state && state.attributes && state.attributes.device_class || "").toLowerCase();
   if (id.includes("radon")) return "radon";
+  if (deviceClass === "pm25" || /(^|_)pm_?2_?5($|_)/.test(id)) return "pm25";
+  if (deviceClass === "pm1" || /(^|_)pm_?1($|_)/.test(id)) return "pm1";
   if (deviceClass === "carbon_dioxide" || /(^|_)co2($|_)/.test(id)) return "co2";
   if (deviceClass === "volatile_organic_compounds" || deviceClass === "volatile_organic_compounds_parts" ||
       id.includes("voc")) return "voc";
   if (deviceClass === "temperature" || id.includes("temperature")) return "temperature";
   if (deviceClass === "humidity" || id.includes("humidity")) return "humidity";
   if (deviceClass === "atmospheric_pressure" || id.includes("pressure")) return "pressure";
+  if (deviceClass === "sound_pressure" || id.includes("noise") || id.includes("sound_level")) return "noise";
+  if (deviceClass === "illuminance" || id.includes("illuminance") || /(^|_)light($|_)/.test(id)) return "light";
   return null;
 }
 
@@ -38,7 +46,10 @@ class AirthingsCard extends HTMLElement {
   setConfig(config) {
     const previousDevice = this._config && this._config.device_id;
     this._config = Object.assign({ title: "Airthings", hours: 24 }, config);
-    if (previousDevice !== this._config.device_id) this._resolvingDevice = "";
+    if (previousDevice !== this._config.device_id) {
+      this._resolvingDevice = "";
+      this._batteryEntity = "";
+    }
     this._history = new Map();
     this._historyKey = "";
     this._effectiveEntities = Array.isArray(config.entities) ? config.entities : [];
@@ -71,6 +82,12 @@ class AirthingsCard extends HTMLElement {
       const candidates = (registry || []).filter((entry) =>
         entry.device_id === deviceId && entry.entity_id && entry.entity_id.startsWith("sensor.") &&
         !entry.disabled_by && this._hass.states[entry.entity_id]);
+      const battery = candidates.find((entry) => {
+        const state = this._hass.states[entry.entity_id];
+        return String(state.attributes.device_class || "").toLowerCase() === "battery" ||
+          /(^|_)battery(_level)?$/.test(entry.entity_id.toLowerCase());
+      });
+      this._batteryEntity = battery ? battery.entity_id : "";
       const selected = new Map();
       candidates.forEach((entry) => {
         const type = sensorType(entry.entity_id, this._hass.states[entry.entity_id]);
@@ -101,6 +118,16 @@ class AirthingsCard extends HTMLElement {
     }
     if (id.endsWith("_" + type) || id.endsWith("_co2")) score += 5;
     return score;
+  }
+
+  _batteryModel() {
+    const state = this._hass && this._hass.states[this._batteryEntity];
+    const value = Number(state && state.state);
+    if (!state || !Number.isFinite(value)) return null;
+    const level = Math.max(0, Math.min(100, Math.round(value)));
+    const icon = level <= 10 ? "mdi:battery-alert" : level >= 95 ? "mdi:battery" :
+      "mdi:battery-" + Math.max(10, Math.round(level / 10) * 10);
+    return { entity: this._batteryEntity, value: level, icon: icon };
   }
 
   async _loadHistory() {
@@ -185,7 +212,7 @@ class AirthingsCard extends HTMLElement {
     if (!this.shadowRoot || !this._config) return;
     const entities = this._effectiveEntities || [];
     const models = entities.map((item) => this._model(item));
-    const rank = { "#e05252": 4, "#ef8d32": 3, "#e8b931": 2, "#45b97c": 1 };
+    const rank = { [COLORS.high]: 4, [COLORS.poor]: 3, [COLORS.fair]: 2, [COLORS.good]: 1 };
     const overall = models.filter((model) => model.available)
       .sort((a,b) => (rank[b.status.color] || 0) - (rank[a.status.color] || 0))[0];
     const cards = models.map((model) =>
@@ -195,6 +222,9 @@ class AirthingsCard extends HTMLElement {
       '<div class="status">' + this._escape(model.status.label) + '</div>' + this._sparkline(model) + '</button>'
     ).join("");
     const badge = overall ? '<div class="badge" style="--quality:' + overall.status.color + '">' + this._escape(overall.status.label || "Current") + '</div>' : "";
+    const battery = this._batteryModel();
+    const batteryHtml = battery ? '<button class="battery" data-entity="' + this._escape(battery.entity) +
+      '" title="Battery"><ha-icon icon="' + battery.icon + '"></ha-icon><span>' + battery.value + '%</span></button>' : "";
     const device = this._hass && this._hass.devices && this._hass.devices[this._config.device_id];
     const title = this._config.title && this._config.title !== "Airthings"
       ? this._config.title : device && (device.name_by_user || device.name) || this._config.title;
@@ -206,7 +236,8 @@ class AirthingsCard extends HTMLElement {
     this.shadowRoot.innerHTML = '<style>' +
       ':host{display:block;container-type:inline-size;--at-bg:var(--ha-card-background,var(--card-background-color,#1c252a));--at-tile:color-mix(in srgb,var(--primary-text-color,#fff) 6%,transparent)}' +
       'ha-card{overflow:hidden;background:var(--at-bg);color:var(--primary-text-color);padding:18px;border-radius:var(--ha-card-border-radius,12px)}' +
-      '.head{display:flex;align-items:center;gap:12px;margin:0 2px 16px}.title{font-size:1.35rem;font-weight:600;min-width:0;flex:1}.subtitle{font-size:.78rem;color:var(--secondary-text-color);margin-top:2px}' +
+      '.head{display:flex;align-items:center;gap:12px;margin:0 2px 16px}.title{font-size:1.35rem;font-weight:600;min-width:0;flex:1}.title-line{display:flex;align-items:center;gap:9px;min-width:0}.title-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.subtitle{font-size:.78rem;color:var(--secondary-text-color);margin-top:2px}' +
+      '.battery{display:flex;align-items:center;gap:3px;border:0;padding:2px 4px;background:transparent;color:var(--secondary-text-color);font:inherit;font-size:.75rem;cursor:pointer}.battery ha-icon{width:18px;height:18px}' +
       '.badge{border-radius:999px;padding:6px 11px;font-weight:650;font-size:.78rem;background:color-mix(in srgb,var(--quality) 20%,transparent);color:var(--quality)}' +
       '.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr));gap:10px}.metric{box-sizing:border-box;min-width:0;height:142px;border:0;border-radius:14px;padding:13px;background:var(--at-tile);color:inherit;text-align:left;position:relative;cursor:pointer;overflow:hidden}' +
       '.metric:hover{background:color-mix(in srgb,var(--primary-text-color,#fff) 10%,transparent)}.label{display:flex;align-items:center;gap:7px;font-size:.94rem;color:var(--secondary-text-color)}ha-icon{width:19px;height:19px}' +
@@ -214,13 +245,18 @@ class AirthingsCard extends HTMLElement {
       '.status{font-size:.78rem;font-weight:650;color:var(--quality);margin-top:7px}.spark{position:absolute;left:11px;right:11px;bottom:8px;width:calc(100% - 22px);height:35px;overflow:visible}.spark line{stroke-width:2.4;stroke-linecap:round;vector-effect:non-scaling-stroke}.guide{stroke:var(--divider-color,rgba(128,128,128,.22));stroke-width:1;vector-effect:non-scaling-stroke}' +
       '.no-history{position:absolute;left:13px;bottom:12px;font-size:.7rem;color:var(--disabled-text-color)}@container (max-width:390px){.metric{height:128px}.value{font-size:1.65rem}}' +
       '.empty{padding:26px 10px;text-align:center;color:var(--secondary-text-color);line-height:1.5}' +
-      '</style><ha-card><div class="head"><div class="title">' + this._escape(title) +
-      '<div class="subtitle">' + this._config.hours + ' hour history · v' + VERSION + '</div></div>' + badge +
+      '</style><ha-card><div class="head"><div class="title"><div class="title-line"><span class="title-text">' + this._escape(title) +
+      '</span>' + batteryHtml + '</div><div class="subtitle">' + this._config.hours + ' hour history · v' + VERSION + '</div></div>' + badge +
       '</div>' + empty + '</ha-card>';
     this.shadowRoot.querySelectorAll(".metric").forEach((button) =>
       button.addEventListener("click", () => this.dispatchEvent(new CustomEvent("hass-more-info", {
         bubbles: true, composed: true, detail: { entityId: button.dataset.entity }
       }))));
+    const batteryButton = this.shadowRoot.querySelector(".battery");
+    if (batteryButton) batteryButton.addEventListener("click", () =>
+      this.dispatchEvent(new CustomEvent("hass-more-info", {
+        bubbles: true, composed: true, detail: { entityId: batteryButton.dataset.entity }
+      })));
   }
 
   _format(value) {
@@ -279,7 +315,7 @@ class AirthingsCardEditor extends HTMLElement {
       String(this._config.title || "").replace(/"/g,"&quot;") + '"></ha-textfield>' +
       '<ha-textfield id="hours" label="History (hours)" type="number" min="1" max="168" value="' +
       this._config.hours + '"></ha-textfield>' +
-      '<div class="hint">The card automatically finds supported sensors exposed by the selected device and chooses the number of columns from the available card width.</div></div>';
+      '<div class="hint">The card finds radon, PM2.5, PM1, CO₂, VOC, temperature, humidity, pressure, noise and light sensors exposed by the selected device. Battery is shown in the header.</div></div>';
     this.shadowRoot.querySelectorAll(".device-option").forEach((option) => option.addEventListener("click", () => {
       const deviceId = option.dataset.device || "";
       if (deviceId === (this._config.device_id || "")) return;
