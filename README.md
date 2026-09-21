@@ -189,6 +189,14 @@ npm run check
 Pull requests and reproducible bug reports are welcome. Include the Home
 Assistant version, card version, Airthings model and relevant entity IDs.
 
+### Creating a release
+
+Releases are created by GitHub Actions. Complete and validate all changes first,
+then update the version in `package.json` and `airthings-card.js`. The final
+version commit must use the exact message `Release vX.Y.Z`. The workflow checks
+the version, JavaScript syntax and HACS compliance before creating a new tag and
+GitHub Release. Existing tags are never overwritten.
+
 ## Roadmap
 
 - User-configurable quality thresholds.
