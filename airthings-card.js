@@ -1,4 +1,4 @@
-const VERSION = "0.5.0";
+const VERSION = "0.5.1";
 const COLORS = {
   good: "#20a464", fair: "#e8bd24", poor: "#ef7b22",
   high: "#d93645", neutral: "#4395c6", unavailable: "#7f8a93"
