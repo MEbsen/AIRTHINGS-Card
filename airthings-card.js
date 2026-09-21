@@ -227,22 +227,56 @@ class AirthingsCard extends HTMLElement {
   _sparkline(model) {
     const points = this._history.get(model.item.entity) || [];
     if (points.length < 2) return '<div class="no-history">No history yet</div>';
+    const endTime = Date.now();
+    const startTime = endTime - this._config.hours * 3600000;
     const values = points.map((point) => point.value);
     let minimum = Math.min.apply(null, values);
     let maximum = Math.max.apply(null, values);
     const padding = Math.max((maximum - minimum) * .18, Math.abs(maximum) * .02, 1);
     minimum -= padding;
     maximum += padding;
-    const x = (index) => 3 + index / (points.length - 1) * 94;
+    const x = (time) => 3 + Math.max(0, Math.min(1, (time - startTime) / (endTime - startTime))) * 94;
     const y = (value) => 35 - (value - minimum) / (maximum - minimum || 1) * 30;
     const segments = points.slice(1).map((point, index) => {
       const previous = points[index];
       const color = this._status(point.value, model.item, model.preset).color;
-      return '<line x1="' + x(index) + '" y1="' + y(previous.value) + '" x2="' + x(index + 1) + '" y2="' + y(point.value) + '" stroke="' + color + '"/>';
+      return '<line x1="' + x(previous.time) + '" y1="' + y(previous.value) + '" x2="' + x(point.time) + '" y2="' + y(point.value) + '" stroke="' + color + '"/>';
     }).join("");
     const last = points[points.length - 1];
     return '<svg class="spark" viewBox="0 0 100 40" preserveAspectRatio="none" aria-label="Recent history"><path class="guide" d="M3 35H97"/>' +
-      segments + '<circle cx="' + x(points.length - 1) + '" cy="' + y(last.value) + '" r="2.3" fill="' + model.status.color + '"/></svg>';
+      segments + '<circle cx="' + x(last.time) + '" cy="' + y(last.value) + '" r="2.3" fill="' + model.status.color + '"/></svg>' +
+      this._timeAxis(startTime, endTime);
+  }
+
+  _timeAxis(startTime, endTime) {
+    const hours = Number(this._config.hours) || 24;
+    const intervalHours = hours <= 12 ? 3 : hours <= 24 ? 6 : hours <= 48 ? 12 : hours <= 96 ? 24 : 48;
+    const interval = intervalHours * 3600000;
+    const locale = this._hass && this._hass.locale && this._hass.locale.language || navigator.language;
+    const timeZone = this._hass && this._hass.config && this._hass.config.time_zone;
+    const offset = this._timeZoneOffset(startTime, timeZone);
+    const first = Math.ceil((startTime + offset) / interval) * interval - offset;
+    const options = { hour: "2-digit", minute: "2-digit", hour12: false };
+    if (timeZone) options.timeZone = timeZone;
+    const formatter = new Intl.DateTimeFormat(locale, options);
+    const ticks = [];
+    for (let time = first; time < endTime; time += interval) {
+      const left = 3 + (time - startTime) / (endTime - startTime) * 94;
+      ticks.push('<span style="left:' + left + '%">' + this._escape(formatter.format(new Date(time))) + '</span>');
+    }
+    return '<div class="time-axis" aria-hidden="true">' + ticks.join("") + '</div>';
+  }
+
+  _timeZoneOffset(timestamp, timeZone) {
+    if (!timeZone) return -new Date(timestamp).getTimezoneOffset() * 60000;
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
+    }).formatToParts(new Date(timestamp)).reduce((result, part) => {
+      if (part.type !== "literal") result[part.type] = Number(part.value);
+      return result;
+    }, {});
+    return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second) - timestamp;
   }
 
   _render() {
@@ -279,7 +313,7 @@ class AirthingsCard extends HTMLElement {
       '.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr));gap:10px}.metric{box-sizing:border-box;min-width:0;height:142px;border:0;border-radius:14px;padding:13px;background:var(--at-tile);color:inherit;text-align:left;position:relative;cursor:pointer;overflow:hidden}' +
       '.metric:hover{background:color-mix(in srgb,var(--primary-text-color,#fff) 10%,transparent)}.label{display:flex;align-items:center;gap:7px;font-size:.94rem;color:var(--secondary-text-color)}ha-icon{width:19px;height:19px}' +
       '.reading{margin-top:10px;line-height:1;color:var(--quality);white-space:nowrap}.value{font-size:1.9rem;font-weight:620;letter-spacing:-.04em}.unit{font-size:.82rem;margin-left:4px;color:var(--secondary-text-color)}' +
-      '.status{font-size:.78rem;font-weight:650;color:var(--quality);margin-top:7px}.spark{position:absolute;left:11px;right:11px;bottom:8px;width:calc(100% - 22px);height:35px;overflow:visible}.spark line{stroke-width:2.4;stroke-linecap:round;vector-effect:non-scaling-stroke}.guide{stroke:var(--divider-color,rgba(128,128,128,.22));stroke-width:1;vector-effect:non-scaling-stroke}' +
+      '.status{font-size:.78rem;font-weight:650;color:var(--quality);margin-top:7px}.spark{position:absolute;left:11px;right:11px;bottom:17px;width:calc(100% - 22px);height:30px;overflow:visible}.spark line{stroke-width:2.4;stroke-linecap:round;vector-effect:non-scaling-stroke}.guide{stroke:var(--divider-color,rgba(128,128,128,.22));stroke-width:1;vector-effect:non-scaling-stroke}.time-axis{position:absolute;left:11px;right:11px;bottom:3px;height:12px;color:var(--secondary-text-color);font-size:.58rem;line-height:12px;opacity:.78}.time-axis span{position:absolute;transform:translateX(-50%);white-space:nowrap}' +
       '.no-history{position:absolute;left:13px;bottom:12px;font-size:.7rem;color:var(--disabled-text-color)}@container (max-width:390px){.metric{height:128px}.value{font-size:1.65rem}}' +
       '.empty{padding:26px 10px;text-align:center;color:var(--secondary-text-color);line-height:1.5}' +
       '</style><ha-card><div class="head"><div class="title"><div class="title-line"><span class="title-text">' + this._escape(title) +
