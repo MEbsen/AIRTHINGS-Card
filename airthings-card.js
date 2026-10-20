@@ -1,4 +1,6 @@
-const VERSION = "0.5.1";
+const VERSION = "0.6.0-dev.1";
+const DEFAULT_REFRESH_MINUTES = 5;
+const REFRESH_OPTIONS = [1, 5, 10, 15, 30];
 const COLORS = {
   good: "#20a464", fair: "#e8bd24", poor: "#ef7b22",
   high: "#d93645", neutral: "#4395c6", unavailable: "#7f8a93"
@@ -56,23 +58,74 @@ class AirthingsCard extends HTMLElement {
 
   setConfig(config) {
     const previousDevice = this._config && this._config.device_id;
-    this._config = Object.assign({ title: "Airthings", hours: 24 }, config);
+    this._config = Object.assign({ title: "Airthings", hours: 24, refresh_interval: DEFAULT_REFRESH_MINUTES }, config);
+    this._config.refresh_interval = this._refreshMinutes();
     this._resolvingDevice = "";
     if (previousDevice !== this._config.device_id) {
       this._batteryEntity = "";
     }
     this._history = new Map();
     this._historyKey = "";
+    this._historyPromise = null;
+    this._lastRefreshAt = 0;
     this._effectiveEntities = Array.isArray(config.entities) ? config.entities : [];
     if (!this.shadowRoot) this.attachShadow({ mode: "open" });
-    this._render();
+    this._renderSafely();
+    this._scheduleRefresh();
   }
 
   set hass(hass) {
     this._hass = hass;
     this._resolveDeviceEntities();
-    this._render();
-    this._loadHistory();
+    if (!this._lastRefreshAt) this._refresh(true);
+  }
+
+  connectedCallback() {
+    this._scheduleRefresh();
+    if (this._hass && this._config) this._refresh(true);
+  }
+
+  disconnectedCallback() {
+    if (this._refreshTimer) clearTimeout(this._refreshTimer);
+    this._refreshTimer = null;
+  }
+
+  _refreshMinutes() {
+    const value = Number(this._config && this._config.refresh_interval);
+    return REFRESH_OPTIONS.includes(value) ? value : DEFAULT_REFRESH_MINUTES;
+  }
+
+  _scheduleRefresh() {
+    if (this._refreshTimer) clearTimeout(this._refreshTimer);
+    if (!this.isConnected || !this._config) return;
+    this._refreshTimer = setTimeout(() => {
+      this._refreshTimer = null;
+      this._refresh();
+    }, this._refreshMinutes() * 60000);
+  }
+
+  _refresh(force) {
+    if (!this._hass || !this._config) return;
+    const interval = this._refreshMinutes() * 60000;
+    if (!force && Date.now() - this._lastRefreshAt < interval - 1000) {
+      this._scheduleRefresh();
+      return;
+    }
+    this._lastRefreshAt = Date.now();
+    this._renderSafely();
+    this._loadHistory(force);
+    this._scheduleRefresh();
+  }
+
+  _renderSafely() {
+    try {
+      this._render();
+    } catch (error) {
+      console.error("Airthings Card could not render", error);
+      if (this.shadowRoot && !this.shadowRoot.firstElementChild) {
+        this.shadowRoot.innerHTML = '<ha-card><div style="padding:18px">Airthings Card could not render. Check the browser console.</div></ha-card>';
+      }
+    }
   }
 
   getCardSize() {
@@ -111,12 +164,11 @@ class AirthingsCard extends HTMLElement {
       this._effectiveEntities = this._sensorOrder().filter((type) => selected.has(type) && !this._sensorHidden(type))
         .map((type) => ({ entity: selected.get(type).entity, type: type }));
       this._historyKey = "";
-      this._render();
-      this._loadHistory();
+      this._refresh(true);
     } catch (error) {
       console.warn("Airthings Card could not inspect the entity registry", error);
       this._effectiveEntities = Array.isArray(this._config.entities) ? this._config.entities : [];
-      this._render();
+      this._renderSafely();
     }
   }
 
@@ -167,26 +219,32 @@ class AirthingsCard extends HTMLElement {
     return { entity: this._batteryEntity, value: level, icon: icon };
   }
 
-  async _loadHistory() {
+  async _loadHistory(force) {
     if (!this._hass || !this._config) return;
     const entities = this._orderedEntities().map((item) => typeof item === "string" ? item : item.entity).filter(Boolean);
-    const key = Math.floor(Date.now() / 300000) + ":" + this._config.hours + ":" + entities.join(",");
-    if (!entities.length || key === this._historyKey) return;
-    this._historyKey = key;
+    const interval = this._refreshMinutes() * 60000;
+    const key = Math.floor(Date.now() / interval) + ":" + this._config.hours + ":" + entities.join(",");
+    if (!entities.length || (!force && key === this._historyKey) || this._historyPromise) return;
     const start = new Date(Date.now() - this._config.hours * 3600000).toISOString();
     const path = "history/period/" + start + "?filter_entity_id=" + entities.join(",") + "&minimal_response&no_attributes";
     try {
-      const result = await this._hass.callApi("GET", path);
+      this._historyPromise = this._hass.callApi("GET", path);
+      const result = await this._historyPromise;
+      const resultByEntity = new Map((result || []).map((series) => [series && series[0] && series[0].entity_id, series]));
       entities.forEach((entity, index) => {
-        const points = (result[index] || []).map((entry) => ({
+        const series = resultByEntity.get(entity) || result[index] || [];
+        const points = series.map((entry) => ({
           time: Date.parse(entry.last_changed), value: Number(entry.state)
         })).filter((point) => Number.isFinite(point.time) && Number.isFinite(point.value));
         this._history.set(entity, points);
       });
+      this._historyKey = key;
     } catch (error) {
       console.warn("Airthings Card could not load history", error);
+    } finally {
+      this._historyPromise = null;
     }
-    this._render();
+    this._renderSafely();
   }
 
   _status(value, item, preset) {
@@ -343,7 +401,7 @@ class AirthingsCard extends HTMLElement {
 
 class AirthingsCardEditor extends HTMLElement {
   setConfig(config) {
-    this._config = Object.assign({ title: "Airthings", hours: 24, entities: [] }, config);
+    this._config = Object.assign({ title: "Airthings", hours: 24, refresh_interval: DEFAULT_REFRESH_MINUTES, entities: [] }, config);
     if (!this.shadowRoot) this.attachShadow({ mode: "open" });
     this._renderEditor();
   }
@@ -372,7 +430,7 @@ class AirthingsCardEditor extends HTMLElement {
     if (!this.shadowRoot || !this._config) return;
     this.shadowRoot.innerHTML = '<style>' +
       ':host{display:block}.form{display:grid;gap:14px;padding:8px 0}' +
-      'ha-textfield{width:100%}.device-field{display:grid;gap:7px}.device-title{font-size:.75rem;color:var(--secondary-text-color);padding-left:12px}' +
+      'ha-textfield{width:100%}.select-field{display:grid;gap:6px}.select-field label{font-size:.75rem;color:var(--secondary-text-color);padding-left:12px}.select-field select{box-sizing:border-box;width:100%;padding:11px;border:1px solid var(--divider-color,#777);border-radius:8px;background:var(--card-background-color);color:var(--primary-text-color);font:inherit}.device-field{display:grid;gap:7px}.device-title{font-size:.75rem;color:var(--secondary-text-color);padding-left:12px}' +
       '.device-options{display:grid;gap:6px}.device-option{box-sizing:border-box;width:100%;min-height:48px;display:flex;align-items:center;gap:12px;padding:10px 13px;border:1px solid var(--divider-color,#777);border-radius:8px;background:var(--card-background-color);color:var(--primary-text-color);font:inherit;text-align:left;cursor:pointer}' +
       '.device-option:hover{background:color-mix(in srgb,var(--primary-text-color) 6%,var(--card-background-color))}.device-option.selected{border-color:var(--primary-color);background:color-mix(in srgb,var(--primary-color) 10%,var(--card-background-color))}' +
       '.radio{box-sizing:border-box;width:20px;height:20px;border:2px solid var(--secondary-text-color);border-radius:50%;display:grid;place-items:center;flex:0 0 auto}.selected .radio{border-color:var(--primary-color)}.selected .radio:after{content:"";width:10px;height:10px;border-radius:50%;background:var(--primary-color)}' +
@@ -387,7 +445,9 @@ class AirthingsCardEditor extends HTMLElement {
       '</div></div><ha-textfield id="title" label="Title (optional)" value="' +
       String(this._config.title || "").replace(/"/g,"&quot;") + '"></ha-textfield>' +
       '<ha-textfield id="hours" label="History (hours)" type="number" min="1" max="168" value="' +
-      this._config.hours + '"></ha-textfield><div class="order-field"><div class="order-title"><span>Measurement order</span><button type="button" class="reset-order">Reset order</button></div><div class="order-list">' +
+      this._config.hours + '"></ha-textfield><div class="select-field"><label for="refresh">Refresh interval</label><select id="refresh">' +
+      REFRESH_OPTIONS.map((minutes) => '<option value="' + minutes + '"' + (minutes === (Number(this._config.refresh_interval) || DEFAULT_REFRESH_MINUTES) ? ' selected' : '') + '>' + minutes + (minutes === 1 ? ' minute' : ' minutes') + '</option>').join("") +
+      '</select></div><div class="order-field"><div class="order-title"><span>Measurement order</span><button type="button" class="reset-order">Reset order</button></div><div class="order-list">' +
       this._editorOrder().map((type, index, order) => {
         const hidden = this._editorHidden().includes(type);
         return '<div class="order-item' + (hidden ? ' hidden' : '') + '"><ha-icon icon="' + PRESETS[type].icon + '"></ha-icon><span class="order-name">' +
@@ -407,6 +467,8 @@ class AirthingsCardEditor extends HTMLElement {
     this.shadowRoot.querySelector("#title").addEventListener("change", (event) => this._change({ title: event.target.value }));
     this.shadowRoot.querySelector("#hours").addEventListener("change", (event) =>
       this._change({ hours: Math.max(1, Math.min(168, Number(event.target.value) || 24)) }));
+    this.shadowRoot.querySelector("#refresh").addEventListener("change", (event) =>
+      this._change({ refresh_interval: Number(event.target.value) || DEFAULT_REFRESH_MINUTES }));
     this.shadowRoot.querySelectorAll(".move").forEach((button) => button.addEventListener("click", () => {
       const order = this._editorOrder();
       const index = order.indexOf(button.dataset.type);

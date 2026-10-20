@@ -67,7 +67,7 @@ Add **Custom: Airthings Card** from Home Assistant's card picker. In the visual
 editor:
 
 1. Select an Airthings device from the radio list.
-2. Optionally change the title and history length.
+2. Optionally change the title, history length and refresh interval.
 3. Use the arrow buttons to change measurement order.
 4. Select the eye icon to hide or show a measurement, or select **Reset order**
    to restore the default order.
@@ -84,6 +84,7 @@ type: custom:airthings-card
 device_id: 0123456789abcdef
 title: Bedroom
 hours: 24
+refresh_interval: 5
 sensor_order:
   - radon
   - co2
@@ -105,11 +106,17 @@ hidden_sensors:
 | `device_id` | string | required | Home Assistant device registry ID. Use the visual editor to select it. |
 | `title` | string | device name | Optional card title. |
 | `hours` | number | `24` | Recorder history window, from 1 to 168 hours. |
+| `refresh_interval` | number | `5` | Minutes between card and history refreshes. Available values: 1, 5, 10, 15 or 30. |
 | `sensor_order` | list | shown above | Relative order of supported measurements. Unknown and duplicate values are ignored. |
 | `hidden_sensors` | list | `[]` | Measurement types hidden from the card. The visual editor controls this with eye icons. |
 
 Existing configurations using the legacy manual `entities` list remain
 supported as a fallback.
+
+Home Assistant continues receiving entity states normally between refreshes.
+The interval only controls how often this card redraws those states and requests
+fresh Recorder history, preventing unrelated Home Assistant state changes from
+rebuilding every graph.
 
 ## Supported measurements
 
