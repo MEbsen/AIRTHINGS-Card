@@ -1,4 +1,4 @@
-const VERSION = "0.6.0-dev.1";
+const VERSION = "0.6.0-dev.2";
 const DEFAULT_REFRESH_MINUTES = 5;
 const REFRESH_OPTIONS = [1, 5, 10, 15, 30];
 const COLORS = {
@@ -61,6 +61,9 @@ class AirthingsCard extends HTMLElement {
     this._config = Object.assign({ title: "Airthings", hours: 24, refresh_interval: DEFAULT_REFRESH_MINUTES }, config);
     this._config.refresh_interval = this._refreshMinutes();
     this._resolvingDevice = "";
+    this._deviceLookup = null;
+    this._resolvedRegistry = null;
+    this._nextDeviceLookupAt = 0;
     if (previousDevice !== this._config.device_id) {
       this._batteryEntity = "";
     }
@@ -112,6 +115,7 @@ class AirthingsCard extends HTMLElement {
       return;
     }
     this._lastRefreshAt = Date.now();
+    this._resolveDeviceEntities();
     this._renderSafely();
     this._loadHistory(force);
     this._scheduleRefresh();
@@ -135,6 +139,10 @@ class AirthingsCard extends HTMLElement {
   async _resolveDeviceEntities() {
     const deviceId = this._config && this._config.device_id;
     if (!deviceId || !this._hass || this._resolvingDevice === deviceId) return;
+    if (this._resolvedRegistry === this._hass.entities && Date.now() < this._nextDeviceLookupAt) return;
+    const lookup = {};
+    this._deviceLookup = lookup;
+    const registrySource = this._hass.entities;
     this._resolvingDevice = deviceId;
     try {
       let registry = this._hass.entities
@@ -143,6 +151,7 @@ class AirthingsCard extends HTMLElement {
       if (!registry && this._hass.callWS) {
         registry = await this._hass.callWS({ type: "config/entity_registry/list" });
       }
+      if (this._deviceLookup !== lookup) return;
       const candidates = (registry || []).filter((entry) =>
         entry.device_id === deviceId && entry.entity_id && entry.entity_id.startsWith("sensor.") &&
         !entry.disabled_by && this._hass.states[entry.entity_id]);
@@ -151,7 +160,7 @@ class AirthingsCard extends HTMLElement {
         return String(state.attributes.device_class || "").toLowerCase() === "battery" ||
           /(^|_)battery(_level)?$/.test(entry.entity_id.toLowerCase());
       });
-      this._batteryEntity = battery ? battery.entity_id : "";
+      if (battery) this._batteryEntity = battery.entity_id;
       const selected = new Map();
       candidates.forEach((entry) => {
         const type = sensorType(entry.entity_id, this._hass.states[entry.entity_id]);
@@ -161,14 +170,24 @@ class AirthingsCard extends HTMLElement {
           selected.set(type, { score: score, entity: entry.entity_id, type: type });
         }
       });
-      this._effectiveEntities = this._sensorOrder().filter((type) => selected.has(type) && !this._sensorHidden(type))
-        .map((type) => ({ entity: selected.get(type).entity, type: type }));
+      const previous = new Map((this._effectiveEntities || []).map((item) => {
+        const entity = typeof item === "string" ? item : item.entity;
+        return [typeof item === "string" ? sensorType(entity) : item.type || sensorType(entity), item];
+      }));
+      this._effectiveEntities = this._sensorOrder().filter((type) => (selected.has(type) || previous.has(type)) && !this._sensorHidden(type))
+        .map((type) => selected.has(type) ? { entity: selected.get(type).entity, type: type } : previous.get(type));
+      this._resolvedRegistry = registrySource;
+      this._nextDeviceLookupAt = Date.now() + (selected.size ? 300000 : 5000);
       this._historyKey = "";
       this._refresh(true);
     } catch (error) {
+      if (this._deviceLookup !== lookup) return;
       console.warn("Airthings Card could not inspect the entity registry", error);
-      this._effectiveEntities = Array.isArray(this._config.entities) ? this._config.entities : [];
+      this._resolvedRegistry = registrySource;
+      this._nextDeviceLookupAt = Date.now() + 5000;
       this._renderSafely();
+    } finally {
+      if (this._deviceLookup === lookup) this._resolvingDevice = "";
     }
   }
 
@@ -544,3 +563,4 @@ window.customCards.push({
   preview: true
 });
 console.info("%c AIRTHINGS-CARD %c " + VERSION + " ", "color:white;background:#45b97c;font-weight:700", "color:#45b97c;background:#182126");
+

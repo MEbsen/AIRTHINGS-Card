@@ -1,11 +1,13 @@
 {
   "name": "airthings-card",
-  "version": "0.6.0-dev.1",
+  "version": "0.6.0-dev.2",
   "description": "Responsive Home Assistant card for Airthings measurements",
   "type": "module",
   "scripts": {
-    "check": "node --check airthings-card.js"
+    "check": "node --check airthings-card.js",
+    "test": "node tests/discovery.test.mjs airthings-card.js"
   },
   "keywords": ["home-assistant", "lovelace", "airthings", "hacs"],
   "license": "MIT"
 }
+

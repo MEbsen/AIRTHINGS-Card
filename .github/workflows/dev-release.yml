@@ -39,6 +39,9 @@ jobs:
       - name: Validate JavaScript
         run: npm run check
 
+      - name: Test sensor recovery
+        run: npm test
+
       - name: Validate HACS repository
         uses: hacs/action@main
         with:
@@ -49,3 +52,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
         run: gh release create "$TAG" --target "$GITHUB_SHA" --title "Airthings Card $TAG" --generate-notes --prerelease
+
